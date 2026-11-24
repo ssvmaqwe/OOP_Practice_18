@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oop-text-game"
+dynamic = ["version"]
+description = "Текстова гра — курсовий проєкт з ООП (Фізик Анна, КН-33)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Фізик Анна" }]
+
+[project.optional-dependencies]
+gui = ["PyQt6>=6.5"]
+dev = ["pytest>=7", "pyinstaller>=6.6"]
+
+[project.scripts]
+textgame = "main:main"
+
+[project.gui-scripts]
+textgame-gui = "gui:main"
+
+[tool.setuptools]
+py-modules = ["main", "gui", "app", "version"]
+
+[tool.setuptools.packages.find]
+include = ["Core", "CLI", "Infra", "GUI"]
+
+[tool.setuptools.dynamic]
+version = { attr = "version.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["Tests"]
