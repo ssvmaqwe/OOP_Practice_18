@@ -1,0 +1,84 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: |
+          python -m pip install pytest
+          python -m pytest -q
+      - name: Python package and .pyz
+        run: |
+          python -m pip install build
+          python -m build
+          python tools/make_pyz.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/*
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q
+      - name: Build exe (release)
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --optimize 2 --paths . --name TextGame gui.py
+          python -m PyInstaller --noconfirm --clean --onefile --console --optimize 2 --paths . --exclude-module PyQt6 --name TextGameConsole main.py
+      - name: Smoke test
+        run: dist\TextGameConsole.exe --version
+        shell: cmd
+      - name: Zip
+        shell: pwsh
+        run: |
+          Copy-Item README.md dist\README.md
+          Compress-Archive -Force -Path dist\TextGame.exe,dist\TextGameConsole.exe,dist\README.md -DestinationPath dist\TextGame-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TextGame-windows
+          path: dist/TextGame-windows.zip
+      - name: Attach to release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/TextGame-windows.zip --clobber
+
+  attach-python:
+    needs: test
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package
+          path: dist
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber --repo "${{ github.repository }}"
